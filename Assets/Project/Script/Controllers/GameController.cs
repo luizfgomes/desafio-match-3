@@ -4,6 +4,7 @@ using DG.Tweening;
 using Gazeus.DesafioMatch3.Core;
 using Gazeus.DesafioMatch3.Models;
 using Gazeus.DesafioMatch3.Views;
+using Gazeus.DesafioMatch3.Core.Abstractions;
 using UnityEngine;
 
 namespace Gazeus.DesafioMatch3.Controllers
@@ -26,7 +27,11 @@ namespace Gazeus.DesafioMatch3.Controllers
         #region Unity
         private void Awake()
         {
-            _gameEngine = new GameService();
+            IRandomizer randomizer = new Randomizer();
+            BoardFactory factory = new BoardFactory(randomizer);
+            _gameEngine = new GameService(factory, randomizer);
+            _gameEngine.StartGame(_boardWidth, _boardHeight);
+
             _boardView.TileClicked += OnTileClick;
 
             _scoreModel = new ScoreModel();

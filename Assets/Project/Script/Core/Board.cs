@@ -19,6 +19,8 @@ namespace Gazeus.DesafioMatch3.Core
 
             for(int y =0; y < height; y++ )
             {
+                Tiles.Add(new List<Tile>(width));
+
                 for ( int x = 0; x < width; x++ )
                 {
                     Tiles [y].Add(new Tile { Id = null, Type = TileType.Empty });
