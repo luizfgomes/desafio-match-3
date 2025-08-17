@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using DG.Tweening;
+using Gazeus.DesafioMatch3.Enums;
 using Gazeus.DesafioMatch3.Models;
 using Gazeus.DesafioMatch3.ScriptableObjects;
 using UnityEngine;
@@ -39,14 +40,16 @@ namespace Gazeus.DesafioMatch3.Views
 
                     _tileSpots[y][x] = tileSpot;
 
-                    int tileTypeIndex = board[y][x].Type;
-                    if (tileTypeIndex > -1)
+                    TileType tileType = board [y] [x].Type;
+                    if ( tileType != TileType.Empty )
                     {
-                        GameObject tilePrefab = _tilePrefabRepository.TileTypePrefabList[tileTypeIndex];
+                        int tileTypeIndex = (int) tileType;
+
+                        GameObject tilePrefab = _tilePrefabRepository.TileTypePrefabList [tileTypeIndex];
+
                         GameObject tile = Instantiate(tilePrefab);
                         tileSpot.SetTile(tile);
-
-                        _tiles[y][x] = tile;
+                        _tiles [y] [x] = tile;
                     }
                 }
             }
@@ -62,11 +65,13 @@ namespace Gazeus.DesafioMatch3.Views
 
                 TileSpotView tileSpot = _tileSpots[position.y][position.x];
 
-                GameObject tilePrefab = _tilePrefabRepository.TileTypePrefabList[addedTileInfo.Type];
+                int tileTypeIndex = (int) addedTileInfo.Type;
+
+                GameObject tilePrefab = _tilePrefabRepository.TileTypePrefabList [tileTypeIndex];
+
                 GameObject tile = Instantiate(tilePrefab);
                 tileSpot.SetTile(tile);
-
-                _tiles[position.y][position.x] = tile;
+                _tiles [position.y] [position.x] = tile;
 
                 tile.transform.localScale = Vector2.zero;
                 sequence.Join(tile.transform.DOScale(1.0f, 0.2f));
