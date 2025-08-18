@@ -2,70 +2,128 @@ using System.Collections.Generic;
 using Gazeus.DesafioMatch3.Models;
 using Gazeus.DesafioMatch3.Enums;
 using UnityEngine;
+using System.Linq;
 
 namespace Gazeus.DesafioMatch3.Core
 {
     public class MatchFinder
     {
-        private enum ScanDirection
+        /// <summary>
+        /// Escaneia o tabuleiro em uma única direção (horizontal ou vertical) para encontrar sequências de 3 ou mais peças iguais.
+        /// </summary>
+        private List<MatchInfos> FindMatchesForAxis ( Board board, bool isHorizontal )
         {
-            Horizontal,
-            Vertical
-        }
+            var foundMatches = new List<MatchInfos>();
+            var rows = board.Height;
+            var cols = board.Width;
 
-        public List<MatchInfos> FindCompleteMatches ( Board board )
-        {
-            var allMatches = new List<MatchInfos>();
+            int primaryAxisLimit = isHorizontal ? rows : cols;
+            int secondaryAxisLimit = isHorizontal ? cols : rows;
 
-            allMatches.AddRange(FindMatchesForAxis(board, ScanDirection.Horizontal));
-            allMatches.AddRange(FindMatchesForAxis(board, ScanDirection.Vertical));
-
-            return allMatches;
-        }
-
-        private IEnumerable<MatchInfos> FindMatchesForAxis ( Board board, ScanDirection direction )
-        {
-            bool isHorizontal = direction == ScanDirection.Horizontal;
-
-            int outerLimit = isHorizontal ? board.Height : board.Width;
-            int innerLimit = isHorizontal ? board.Width : board.Height;
-
-            for ( int outer = 0; outer < outerLimit; outer++ )
+            for ( int i = 0; i < primaryAxisLimit; i++ )
             {
-                for ( int inner = 0; inner < innerLimit - 2; )
+                for ( int j = 0; j < secondaryAxisLimit - 2; )
                 {
-                    Tile currentTile = isHorizontal ? board.Tiles [outer] [inner] : board.Tiles [inner] [outer];
-
+                    Tile currentTile = isHorizontal ? board.Tiles [i] [j] : board.Tiles [j] [i];
                     if ( currentTile.Type == TileType.Empty )
                     {
-                        inner++;
+                        j++;
                         continue;
                     }
 
-                    var currentMatch = new List<Vector2Int>();
-
-                    for ( int i = inner; i < innerLimit; i++ )
+                    var currentMatchSequence = new List<Vector2Int>();
+                    for ( int k = j; k < secondaryAxisLimit; k++ )
                     {
-                        Tile nextTile = isHorizontal ? board.Tiles [outer] [i] : board.Tiles [i] [outer];
+                        Tile nextTile = isHorizontal ? board.Tiles [i] [k] : board.Tiles [k] [i];
                         if ( nextTile.Type == currentTile.Type )
                         {
-                            Vector2Int position = isHorizontal ? new Vector2Int(i, outer) : new Vector2Int(outer, i);
-                            currentMatch.Add(position);
+                            var pos = isHorizontal ? new Vector2Int(k, i) : new Vector2Int(i, k);
+                            currentMatchSequence.Add(pos);
                         } else
                         {
                             break;
                         }
                     }
 
-                    if ( currentMatch.Count >= 3 )
+                    if ( currentMatchSequence.Count >= 3 )
                     {
-                        MatchDirection matchDirection = isHorizontal ? MatchDirection.Horizontal : MatchDirection.Vertical;
-                        yield return new MatchInfos(currentMatch, matchDirection);
+                        var direction = isHorizontal ? MatchDirection.Horizontal : MatchDirection.Vertical;
+                        foundMatches.Add(new MatchInfos(currentMatchSequence, direction));
                     }
 
-                    inner += currentMatch.Count > 0 ? currentMatch.Count : 1;
+                    j += Mathf.Max(1, currentMatchSequence.Count);
                 }
             }
+            return foundMatches;
+        }
+
+        /// <summary>
+        /// Analisa listas de matches para encontrar e agrupar todas os cruzamentos
+        /// em matches complexos (L, T, +), garantindo que nenhuma peça seja contada duas vezes.
+        /// </summary>
+        private List<MatchInfos> ProcessComplexMatches ( List<MatchInfos> horizontal, List<MatchInfos> vertical )
+        {
+            var finalMatches = new List<MatchInfos>();
+            var allSimpleMatches = horizontal.Concat(vertical).ToList();
+            var consumedMatches = new HashSet<MatchInfos>();
+
+            for ( int i = 0; i < allSimpleMatches.Count; i++ )
+            {
+                var currentMatch = allSimpleMatches [i];
+                if ( consumedMatches.Contains(currentMatch) )
+                {
+                    continue;
+                }
+
+                var complexMatchTiles = new HashSet<Vector2Int>(currentMatch.MatchedTiles);
+                var matchesInThisCombo = new List<MatchInfos> { currentMatch };
+
+                bool newConnectionFound;
+                do
+                {
+                    newConnectionFound = false;
+                    for ( int j = 0; j < allSimpleMatches.Count; j++ )
+                    {
+                        var otherMatch = allSimpleMatches [j];
+
+                        if ( matchesInThisCombo.Contains(otherMatch) || consumedMatches.Contains(otherMatch) )
+                        {
+                            continue;
+                        }
+
+                        if ( otherMatch.MatchedTiles.Any(tile => complexMatchTiles.Contains(tile)) )
+                        {
+                            complexMatchTiles.UnionWith(otherMatch.MatchedTiles);
+                            matchesInThisCombo.Add(otherMatch);
+                            newConnectionFound = true;
+                        }
+                    }
+                } while ( newConnectionFound );
+
+
+                if ( matchesInThisCombo.Count > 1 )
+                {
+
+                    finalMatches.Add(new MatchInfos(complexMatchTiles.ToList(), MatchDirection.Complex));
+
+                    foreach ( var match in matchesInThisCombo )
+                    {
+                        consumedMatches.Add(match);
+                    }
+                }
+            }
+
+            finalMatches.AddRange(allSimpleMatches.Where(m => !consumedMatches.Contains(m)));
+
+            return finalMatches;
+        }
+
+        public List<MatchInfos> FindCompleteMatches ( Board board )
+        {
+            var horizontalMatches = FindMatchesForAxis(board, isHorizontal: true);
+            var verticalMatches = FindMatchesForAxis(board, isHorizontal: false);
+            var processedMatches = ProcessComplexMatches(horizontalMatches, verticalMatches);
+            return processedMatches;
         }
     }
 }

@@ -3,6 +3,7 @@ using Gazeus.DesafioMatch3.Models;
 using Gazeus.DesafioMatch3.Enums;
 using Gazeus.DesafioMatch3.Core.Abstractions;
 using UnityEngine;
+using System.Linq;
 
 namespace Gazeus.DesafioMatch3.Core
 {
@@ -16,7 +17,7 @@ namespace Gazeus.DesafioMatch3.Core
         private Board _currentBoard;
         private int _tileCount = 0;
 
-        public GameService (BoardFactory boardFactory, IRandomizer randomizer)
+        public GameService ( BoardFactory boardFactory, IRandomizer randomizer )
         {
             _boardFactory = boardFactory;
             _randomizer = randomizer;
@@ -55,7 +56,6 @@ namespace Gazeus.DesafioMatch3.Core
                 MatchProcessingResult processingResult = ProcessMatches(_currentBoard, allMatches, movePosition);
 
                 List<MovedTileInfo> movedTiles = ApplyGravity(_currentBoard);
-
                 List<AddedTileInfo> addedTiles = RefillBoard(_currentBoard);
 
                 boardSequences.Add(new BoardSequence
@@ -72,7 +72,7 @@ namespace Gazeus.DesafioMatch3.Core
             return boardSequences;
         }
 
-        private List<MovedTileInfo> ApplyGravity (Board board )
+        private List<MovedTileInfo> ApplyGravity ( Board board )
         {
             var movedTiles = new List<MovedTileInfo>();
             for ( int x = 0; x < board.Width; x++ )
@@ -129,53 +129,96 @@ namespace Gazeus.DesafioMatch3.Core
             var destroyedPositions = new List<Vector2Int>();
             var transformedTiles = new List<TransformedTileInfo>();
 
-            SpecialTileType specialTypeToCreate = SpecialTileType.None;
-            Vector2Int specialTileCreationPos = new Vector2Int(-1, -1);
-
+            // Cada matchInfos é processado individualmente
             foreach ( var match in allMatches )
             {
-                if ( match.Count >= 4 )
-                {
-                    specialTypeToCreate = (match.Direction == MatchDirection.Horizontal) ? SpecialTileType.LineClearHorizontal : SpecialTileType.LineClearVertical;
+                var group = new HashSet<Vector2Int>(match.MatchedTiles);
+                int comboSize = group.Count;
 
-                    if ( match.MatchedTiles.Contains(movePosition) )
+                SpecialTileType specialTypeToCreate = SpecialTileType.None;
+
+                int width = group.Max(p => p.x) - group.Min(p => p.x) + 1;
+                int height = group.Max(p => p.y) - group.Min(p => p.y) + 1;
+                bool isLine = width == 1 || height == 1;
+
+                if ( isLine )
+                {
+                    // Linhas normais.
+                    if ( comboSize == 3 )
                     {
-                        specialTileCreationPos = movePosition;
-                    } else 
+                        Debug.Log($"Normal de 3 em {string.Join(",", group)}");
+                    } else if ( comboSize == 4 )
                     {
-                        specialTileCreationPos = match.MatchedTiles [0];
+                        if ( width > 1 )
+                        {
+                            specialTypeToCreate = SpecialTileType.LineClearHorizontal;
+                            Debug.Log("Linha de 4 cria limpa linha H");
+                        } else
+                        {
+                            specialTypeToCreate = SpecialTileType.LineClearVertical;
+                            Debug.Log("Coluna de 4 cria limpa linha V");
+                        }
+                    } else if ( comboSize >= 5 )
+                    {
+                        if ( width > 1 )
+                            specialTypeToCreate = SpecialTileType.LineClearHorizontal;
+                        else
+                            specialTypeToCreate = SpecialTileType.LineClearVertical;
+                        Debug.Log("Linha/coluna de 5 detectada futuro super power-up");
                     }
-                    break;
-                }
-            }
-
-            var positionsToClear = new HashSet<Vector2Int>();
-            foreach ( var match in allMatches )
-            {
-                foreach ( var pos in match.MatchedTiles )
-                {
-                    positionsToClear.Add(pos);
-                }
-            }
-
-            foreach ( var pos in positionsToClear )
-            {
-                if ( pos == specialTileCreationPos )
-                {
-                    board.Tiles [pos.y] [pos.x].Special = specialTypeToCreate;
-
-                    transformedTiles.Add(new TransformedTileInfo
-                    {
-                        Position = pos,
-                        NewSpecialType = specialTypeToCreate
-                    });
                 } else
                 {
-                    board.Tiles [pos.y] [pos.x].Type = TileType.Empty;
-                    board.Tiles [pos.y] [pos.x].Id = null;
-                    board.Tiles [pos.y] [pos.x].Special = SpecialTileType.None;
+                    // Combinações especiais!
+                    bool isT = false;
+                    foreach ( var pos in group )
+                    {
+                        int neighbors = 0;
+                        if ( group.Contains(new Vector2Int(pos.x, pos.y + 1)) )
+                            neighbors++;
+                        if ( group.Contains(new Vector2Int(pos.x, pos.y - 1)) )
+                            neighbors++;
+                        if ( group.Contains(new Vector2Int(pos.x - 1, pos.y)) )
+                            neighbors++;
+                        if ( group.Contains(new Vector2Int(pos.x + 1, pos.y)) )
+                            neighbors++;
+                        if ( neighbors >= 3 )
+                        { isT = true; break; }
+                    }
+                    string comboType = isT ? "T" : "L";
+                    Debug.Log($"[MATCH] Combo em {comboType} detectado ({comboSize} peças) – ainda sem efeito.");
+                }
 
-                    destroyedPositions.Add(pos);
+                Vector2Int specialTileCreationPos = new Vector2Int(-1, -1);
+                if ( specialTypeToCreate != SpecialTileType.None )
+                {
+                    if ( group.Contains(movePosition) )
+                        specialTileCreationPos = movePosition;
+                    else
+                    {
+                        int centerX = (group.Min(p => p.x) + group.Max(p => p.x)) / 2;
+                        int centerY = (group.Min(p => p.y) + group.Max(p => p.y)) / 2;
+                        specialTileCreationPos = new Vector2Int(centerX, centerY);
+                    }
+                }
+
+                foreach ( var pos in group )
+                {
+                    if ( pos == specialTileCreationPos )
+                    {
+                        board.Tiles [pos.y] [pos.x].Special = specialTypeToCreate;
+                        transformedTiles.Add(new TransformedTileInfo
+                        {
+                            Position = pos,
+                            NewSpecialType = specialTypeToCreate
+                        });
+                        Debug.Log($"[POWER-UP] Criado {specialTypeToCreate} em ({pos.x},{pos.y})");
+                    } else
+                    {
+                        board.Tiles [pos.y] [pos.x].Type = TileType.Empty;
+                        board.Tiles [pos.y] [pos.x].Id = null;
+                        board.Tiles [pos.y] [pos.x].Special = SpecialTileType.None;
+                        destroyedPositions.Add(pos);
+                    }
                 }
             }
 
