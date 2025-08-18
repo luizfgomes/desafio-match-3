@@ -21,9 +21,7 @@ namespace Gazeus.DesafioMatch3.Controllers
         private ScoreController _scoreController;
 
         private bool _isAnimating;
-        private Vector2Int? _selectedTilePostion;
-        //private int _selectedX = -1;
-        //private int _selectedY = -1;
+        private Vector2Int? _selectedTilePosition;
 
         #region Unity
         private void Awake()
@@ -77,52 +75,52 @@ namespace Gazeus.DesafioMatch3.Controllers
             }
         }
 
-        private void OnTileClick ( int x, int y )
+        private void OnTileClick (int x, int y)
         {
             if ( _isAnimating )
                 return;
 
-            Vector2Int clickedPostition = new Vector2Int(x, y);
+            Vector2Int clickedPosition = new Vector2Int(x, y);
 
-            if ( !_selectedTilePostion.HasValue )
+            if ( !_selectedTilePosition.HasValue )
             {
-                SelectTile(clickedPostition);
+                SelectTile(clickedPosition);
             } 
             else
             {
-                ProcessSecondTileClick(clickedPostition);
+                ProcessSecondTileClick(clickedPosition);
             }
         }
 
         private void SelectTile (Vector2Int position )
         {
-            _selectedTilePostion = position;
+            _selectedTilePosition = position;
         }
 
-        private void ProcessSecondTileClick(Vector2Int clickedPostition )
+        private void ProcessSecondTileClick(Vector2Int clickedPosition )
         {
-            Vector2Int firstPosition = _selectedTilePostion.Value;
+            Vector2Int firstPosition = _selectedTilePosition.Value;
 
-            if ( firstPosition == clickedPostition )
+            if ( firstPosition == clickedPosition )
             {
-                DeselectTile();
+                DiselectTile();
                 return;
             }
 
-            if ( Mathf.Abs(firstPosition.x - clickedPostition.x) + Mathf.Abs(firstPosition.y - clickedPostition.y) > 1 )
+            if ( Mathf.Abs(firstPosition.x - clickedPosition.x) + Mathf.Abs(firstPosition.y - clickedPosition.y) > 1 )
             {
-                DeselectTile();
-                SelectTile(clickedPostition);
+                DiselectTile();
+                SelectTile(clickedPosition);
                 return;
             }
 
-            ValidateSwap(firstPosition, clickedPostition);
+            ValidateSwap(firstPosition, clickedPosition);
         }
 
         private void ValidateSwap (Vector2Int from, Vector2Int to)
         {
             _isAnimating = true;
-            DeselectTile();
+            DiselectTile();
 
             _boardView.SwapTiles(from.x, from.y, to.x, to.y).onComplete += () => SwapFinishedAnimation(from, to);
         }
@@ -142,11 +140,11 @@ namespace Gazeus.DesafioMatch3.Controllers
             }
         }
 
-        private void DeselectTile ()
+        private void DiselectTile ()
         {
-            if ( _selectedTilePostion.HasValue )
+            if ( _selectedTilePosition.HasValue )
             {
-                _selectedTilePostion = null;
+                _selectedTilePosition = null;
             }
         }
     }
