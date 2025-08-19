@@ -10,18 +10,18 @@ namespace Gazeus.DesafioMatch3.Core
         public int Width { get; }
         public int Height { get; }
 
-        public Board(int width, int height )
+        public Board (int width, int height)
         {
             Width = width;
             Height = height;
 
             Tiles = new List<List<Tile>>(height);
 
-            for(int y =0; y < height; y++ )
+            for (int y = 0; y < height; y++)
             {
                 Tiles.Add(new List<Tile>(width));
 
-                for ( int x = 0; x < width; x++ )
+                for (int x = 0; x < width; x++)
                 {
                     Tiles [y].Add(new Tile { Id = null, Type = TileType.Empty });
                 }
@@ -32,9 +32,9 @@ namespace Gazeus.DesafioMatch3.Core
         {
             var newBoard = new Board(Width, Height);
 
-            for ( int y = 0; y < Height; y++ )
+            for (int y = 0; y < Height; y++)
             {
-                for ( int x = 0; x < Width; x++ )
+                for (int x = 0; x < Width; x++)
                 {
                     Tile originalTile = Tiles [y] [x];
 
