@@ -56,6 +56,19 @@ namespace Gazeus.DesafioMatch3.Core
                 MatchProcessingResult processingResult = ProcessMatches(_currentBoard, allMatches, movePosition);
 
                 List<MovedTileInfo> movedTiles = ApplyGravity(_currentBoard);
+
+                foreach ( var transformedTile in processingResult.TransformedTiles )
+                {
+                    foreach ( var movedTile in movedTiles )
+                    {
+                        if ( movedTile.From == transformedTile.Position )
+                        {
+                            transformedTile.Position = movedTile.To;
+                            break;
+                        }
+                    }
+                }
+
                 List<AddedTileInfo> addedTiles = RefillBoard(_currentBoard);
 
                 boardSequences.Add(new BoardSequence
@@ -152,6 +165,7 @@ namespace Gazeus.DesafioMatch3.Core
                         if ( width > 1 )
                         {
                             specialTypeToCreate = SpecialTileType.LineClearHorizontal;
+
                             Debug.Log("Linha de 4 cria limpa linha H");
                         } else
                         {
@@ -160,8 +174,10 @@ namespace Gazeus.DesafioMatch3.Core
                         }
                     } else if ( comboSize >= 5 )
                     {
+                        
                         if ( width > 1 )
                             specialTypeToCreate = SpecialTileType.LineClearHorizontal;
+                        
                         else
                             specialTypeToCreate = SpecialTileType.LineClearVertical;
                         Debug.Log("Linha/coluna de 5 detectada futuro super power-up");
