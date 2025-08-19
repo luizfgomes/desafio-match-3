@@ -3,6 +3,7 @@ using Gazeus.DesafioMatch3.Models;
 using Gazeus.DesafioMatch3.Enums;
 using Gazeus.DesafioMatch3.Core.Abstractions;
 using UnityEngine;
+using System.Linq;
 
 namespace Gazeus.DesafioMatch3.Core
 {
@@ -16,7 +17,7 @@ namespace Gazeus.DesafioMatch3.Core
         private Board _currentBoard;
         private int _tileCount = 0;
 
-        public GameService (BoardFactory boardFactory, IRandomizer randomizer)
+        public GameService ( BoardFactory boardFactory, IRandomizer randomizer )
         {
             _boardFactory = boardFactory;
             _randomizer = randomizer;
@@ -43,18 +44,70 @@ namespace Gazeus.DesafioMatch3.Core
         public List<BoardSequence> SwapTile ( int fromX, int fromY, int toX, int toY )
         {
             var boardSequences = new List<BoardSequence>();
+            var fromPos = new Vector2Int(fromX, fromY);
+            var toPos = new Vector2Int(toX, toY);
 
             (_currentBoard.Tiles [toY] [toX], _currentBoard.Tiles [fromY] [fromX]) =
                 (_currentBoard.Tiles [fromY] [fromX], _currentBoard.Tiles [toY] [toX]);
 
             var allMatches = _matchFinder.FindCompleteMatches(_currentBoard);
 
+            var powerupPos = new Vector2Int(-1, -1);
+
+            if ( _currentBoard.Tiles [fromPos.y] [fromPos.x].Special != SpecialTileType.None )
+            {
+                if ( allMatches.Any(m => m.MatchedTiles.Contains(fromPos)) )
+                {
+                    powerupPos = fromPos;
+                }
+            }
+
+            if ( _currentBoard.Tiles [toPos.y] [toPos.x].Special != SpecialTileType.None )
+            {
+                if ( allMatches.Any(m => m.MatchedTiles.Contains(toPos)) )
+                {
+                    powerupPos = toPos;
+                }
+            }
+
+            if ( powerupPos != new Vector2Int(-1, -1) )
+            {
+                var matchedTiles = new List<Vector2Int>();
+                var tile = _currentBoard.Tiles [powerupPos.y] [powerupPos.x];
+
+                if ( tile.Special == SpecialTileType.LineClearHorizontal )
+                {
+                    for ( int x = 0; x < _currentBoard.Width; x++ )
+                        matchedTiles.Add(new Vector2Int(x, powerupPos.y));
+                } else if ( tile.Special == SpecialTileType.LineClearVertical )
+                {
+                    for ( int y = 0; y < _currentBoard.Height; y++ )
+                        matchedTiles.Add(new Vector2Int(powerupPos.x, y));
+                }
+
+                tile.Special = SpecialTileType.None;
+
+                allMatches.Add(new MatchInfos(matchedTiles, MatchDirection.None));
+            }
+
             while ( allMatches.Count > 0 )
             {
-                var movePosition = new Vector2Int(toX, toY);
-                MatchProcessingResult processingResult = ProcessMatches(_currentBoard, allMatches, movePosition);
+                var specialTileCreationPosition = new Vector2Int(toX, toY);
+                MatchProcessingResult processingResult = ProcessMatches(_currentBoard, allMatches, specialTileCreationPosition);
 
                 List<MovedTileInfo> movedTiles = ApplyGravity(_currentBoard);
+
+                foreach ( var transformedTile in processingResult.TransformedTiles )
+                {
+                    foreach ( var movedTile in movedTiles )
+                    {
+                        if ( movedTile.From == transformedTile.Position )
+                        {
+                            transformedTile.Position = movedTile.To;
+                            break;
+                        }
+                    }
+                }
 
                 List<AddedTileInfo> addedTiles = RefillBoard(_currentBoard);
 
@@ -72,7 +125,7 @@ namespace Gazeus.DesafioMatch3.Core
             return boardSequences;
         }
 
-        private List<MovedTileInfo> ApplyGravity (Board board )
+        private List<MovedTileInfo> ApplyGravity ( Board board )
         {
             var movedTiles = new List<MovedTileInfo>();
             for ( int x = 0; x < board.Width; x++ )
@@ -124,62 +177,113 @@ namespace Gazeus.DesafioMatch3.Core
             return addedTiles;
         }
 
-        private MatchProcessingResult ProcessMatches ( Board board, List<MatchInfos> allMatches, Vector2Int movePosition )
+        private MatchProcessingResult ProcessMatches ( Board board, List<MatchInfos> allMatches, Vector2Int? specialTileCreationPosition )
         {
-            var destroyedPositions = new List<Vector2Int>();
+            var destroyedPositions = new HashSet<Vector2Int>();
             var transformedTiles = new List<TransformedTileInfo>();
-
-            SpecialTileType specialTypeToCreate = SpecialTileType.None;
-            Vector2Int specialTileCreationPos = new Vector2Int(-1, -1);
+            var powerupsToActivate = new Queue<Vector2Int>();
 
             foreach ( var match in allMatches )
             {
-                if ( match.Count >= 4 )
-                {
-                    specialTypeToCreate = (match.Direction == MatchDirection.Horizontal) ? SpecialTileType.LineClearHorizontal : SpecialTileType.LineClearVertical;
+                var activatedPowerupPos = match.MatchedTiles.FirstOrDefault(pos => board.Tiles [pos.y] [pos.x].Special != SpecialTileType.None);
 
-                    if ( match.MatchedTiles.Contains(movePosition) )
+                if ( activatedPowerupPos != Vector2Int.zero )
+                {
+                    powerupsToActivate.Enqueue(activatedPowerupPos);
+                }
+            }
+
+            while ( powerupsToActivate.Count > 0 )
+            {
+                var currentPowerupPos = powerupsToActivate.Dequeue();
+                var tile = board.Tiles [currentPowerupPos.y] [currentPowerupPos.x];
+
+                if ( tile.Special == SpecialTileType.None )
+                {
+                    continue;
+                }
+
+                if ( tile.Special == SpecialTileType.LineClearHorizontal )
+                {
+                    for ( int x = 0; x < board.Width; x++ )
                     {
-                        specialTileCreationPos = movePosition;
-                    } else 
-                    {
-                        specialTileCreationPos = match.MatchedTiles [0];
+                        var targetPos = new Vector2Int(x, currentPowerupPos.y);
+                        var targetTile = board.Tiles [targetPos.y] [targetPos.x];
+
+                        if ( targetTile.Special != SpecialTileType.None && !destroyedPositions.Contains(targetPos) )
+                        {
+                            powerupsToActivate.Enqueue(targetPos);
+                        }
+                        destroyedPositions.Add(targetPos);
                     }
-                    break;
+                } else if ( tile.Special == SpecialTileType.LineClearVertical )
+                {
+                    for ( int y = 0; y < board.Height; y++ )
+                    {
+                        var targetPos = new Vector2Int(currentPowerupPos.x, y);
+                        var targetTile = board.Tiles [targetPos.y] [targetPos.x];
+
+                        if ( targetTile.Special != SpecialTileType.None && !destroyedPositions.Contains(targetPos) )
+                        {
+                            powerupsToActivate.Enqueue(targetPos);
+                        }
+                        destroyedPositions.Add(targetPos);
+                    }
                 }
+
+                board.Tiles [currentPowerupPos.y] [currentPowerupPos.x].Special = SpecialTileType.None;
             }
 
-            var positionsToClear = new HashSet<Vector2Int>();
-            foreach ( var match in allMatches )
+            var regularMatches = allMatches.Where(m => m.MatchedTiles.All(pos => board.Tiles [pos.y] [pos.x].Special == SpecialTileType.None)).ToList();
+
+            foreach ( var match in regularMatches )
             {
-                foreach ( var pos in match.MatchedTiles )
+                SpecialTileType specialTypeToCreate = SpecialTileType.None;
+                Vector2Int posToTransform = Vector2Int.zero;
+
+                if ( match.MatchedTiles.Count >= 4 )
                 {
-                    positionsToClear.Add(pos);
+                    if ( match.Direction == MatchDirection.Horizontal )
+                        specialTypeToCreate = SpecialTileType.LineClearHorizontal;
+                    else if ( match.Direction == MatchDirection.Vertical )
+                        specialTypeToCreate = SpecialTileType.LineClearVertical;
                 }
-            }
 
-            foreach ( var pos in positionsToClear )
-            {
-                if ( pos == specialTileCreationPos )
+                if ( specialTypeToCreate != SpecialTileType.None )
                 {
-                    board.Tiles [pos.y] [pos.x].Special = specialTypeToCreate;
+                    if ( specialTileCreationPosition.HasValue && match.MatchedTiles.Contains(specialTileCreationPosition.Value) )
+                    {
+                        posToTransform = specialTileCreationPosition.Value;
+                    } else
+                    {
+                        posToTransform = match.MatchedTiles.Last();
+                    }
 
+                    board.Tiles [posToTransform.y] [posToTransform.x].Special = specialTypeToCreate;
                     transformedTiles.Add(new TransformedTileInfo
                     {
-                        Position = pos,
+                        Position = posToTransform,
                         NewSpecialType = specialTypeToCreate
                     });
-                } else
-                {
-                    board.Tiles [pos.y] [pos.x].Type = TileType.Empty;
-                    board.Tiles [pos.y] [pos.x].Id = null;
-                    board.Tiles [pos.y] [pos.x].Special = SpecialTileType.None;
+                }
 
-                    destroyedPositions.Add(pos);
+                foreach ( var pos in match.MatchedTiles )
+                {
+                    if ( pos != posToTransform )
+                    {
+                        destroyedPositions.Add(pos);
+                    }
                 }
             }
 
-            return new MatchProcessingResult(destroyedPositions, transformedTiles);
+            foreach ( var pos in destroyedPositions )
+            {
+                board.Tiles [pos.y] [pos.x].Type = TileType.Empty;
+                board.Tiles [pos.y] [pos.x].Id = null;
+                board.Tiles [pos.y] [pos.x].Special = SpecialTileType.None;
+            }
+
+            return new MatchProcessingResult(destroyedPositions.ToList(), transformedTiles);
         }
 
         private class MatchProcessingResult

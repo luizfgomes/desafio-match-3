@@ -3,6 +3,8 @@ namespace Gazeus.DesafioMatch3.Enums
     public enum MatchDirection
     {
         Horizontal, 
-        Vertical 
+        Vertical,
+        None,
+        Complex
     }
 }

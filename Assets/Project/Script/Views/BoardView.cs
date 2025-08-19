@@ -16,6 +16,7 @@ namespace Gazeus.DesafioMatch3.Views
         [SerializeField] private GridLayoutGroup _boardContainer;
         [SerializeField] private TilePrefabRepository _tilePrefabRepository;
         [SerializeField] private TileSpotView _tileSpotPrefab;
+        [SerializeField] private Sprite _linePowerupSprite;
 
         private GameObject[][] _tiles;
         private TileSpotView[][] _tileSpots;
@@ -58,6 +59,7 @@ namespace Gazeus.DesafioMatch3.Views
         public Tween CreateTile(List<AddedTileInfo> addedTiles)
         {
             Sequence sequence = DOTween.Sequence();
+
             for (int i = 0; i < addedTiles.Count; i++)
             {
                 AddedTileInfo addedTileInfo = addedTiles[i];
@@ -105,6 +107,7 @@ namespace Gazeus.DesafioMatch3.Views
             }
 
             Sequence sequence = DOTween.Sequence();
+
             for (int i = 0; i < movedTiles.Count; i++)
             {
                 MovedTileInfo movedTileInfo = movedTiles[i];
@@ -125,11 +128,50 @@ namespace Gazeus.DesafioMatch3.Views
         public Tween SwapTiles(int fromX, int fromY, int toX, int toY)
         {
             Sequence sequence = DOTween.Sequence();
+
             sequence.Append(_tileSpots[fromY][fromX].AnimatedSetTile(_tiles[toY][toX]));
             sequence.Join(_tileSpots[toY][toX].AnimatedSetTile(_tiles[fromY][fromX]));
 
             (_tiles[toY][toX], _tiles[fromY][fromX]) = (_tiles[fromY][fromX], _tiles[toY][toX]);
 
+            return sequence;
+        }
+
+        public Tween LinePowerup ( List<TransformedTileInfo> transformedTiles )
+        {
+            Sequence sequence = DOTween.Sequence();
+
+            for ( int i = 0; i < transformedTiles.Count; i++ )
+            {
+                var transformedTileInfo = transformedTiles[i];
+                var position = transformedTileInfo.Position;
+                var tile = _tiles [position.y] [position.x];
+                var specialTileObject = new GameObject("LinePowerup", typeof(Image));
+                Transform? specialTileTransform;
+
+                specialTileObject.transform.SetParent(tile.transform, false); 
+
+                var specialTileImage = specialTileObject.GetComponent<Image>();
+                specialTileImage.sprite = _linePowerupSprite;
+
+                RectTransform rectTransform = specialTileImage.rectTransform;
+                rectTransform.anchorMin = Vector2.zero;
+                rectTransform.anchorMax = Vector2.one;
+                rectTransform.sizeDelta = Vector2.zero;
+
+                specialTileTransform = specialTileObject.transform;
+                specialTileTransform.localScale = Vector3.zero;
+
+                if ( transformedTileInfo.NewSpecialType == SpecialTileType.LineClearHorizontal )
+                {
+                    specialTileTransform.localRotation = Quaternion.Euler(0, 0, 0);
+                } else if ( transformedTileInfo.NewSpecialType == SpecialTileType.LineClearVertical )
+                {
+                    specialTileTransform.localRotation = Quaternion.Euler(0, 0, 90);
+                }
+
+                sequence.Join(specialTileTransform.DOScale(1.0f, 0.2f));
+            }
             return sequence;
         }
 
