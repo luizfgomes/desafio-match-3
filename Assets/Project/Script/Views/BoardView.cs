@@ -17,6 +17,7 @@ namespace Gazeus.DesafioMatch3.Views
         [SerializeField] private TilePrefabRepository _tilePrefabRepository;
         [SerializeField] private TileSpotView _tileSpotPrefab;
         [SerializeField] private Sprite _linePowerupSprite;
+        [SerializeField] private Sprite _bombPowerupSprite;
 
         private GameObject[][] _tiles;
         private TileSpotView[][] _tileSpots;
@@ -171,6 +172,34 @@ namespace Gazeus.DesafioMatch3.Views
                 }
 
                 sequence.Join(specialTileTransform.DOScale(1.0f, 0.2f));
+            }
+            return sequence;
+        }
+
+        public Tween BombPowerup ( List<TransformedTileInfo> transformedTiles )
+        {
+            Sequence sequence = DOTween.Sequence();
+
+            for ( int i = 0; i < transformedTiles.Count; i++ )
+            {
+                var transformedTileInfo = transformedTiles [i];
+                var position = transformedTileInfo.Position;
+                var tile = _tiles [position.y] [position.x];
+                var specialTileObject = new GameObject("BombPowerup", typeof(Image));
+
+                specialTileObject.transform.SetParent(tile.transform, false);
+
+                var specialTileImage = specialTileObject.GetComponent<Image>();
+                specialTileImage.sprite = _bombPowerupSprite;
+
+                RectTransform rectTransform = specialTileImage.rectTransform;
+                rectTransform.anchorMin = Vector2.zero;
+                rectTransform.anchorMax = Vector2.one;
+                rectTransform.sizeDelta = Vector2.zero;
+
+                specialTileObject.transform.localScale = Vector3.zero;
+
+                sequence.Join(specialTileObject.transform.DOScale(1.0f, 0.2f));
             }
             return sequence;
         }

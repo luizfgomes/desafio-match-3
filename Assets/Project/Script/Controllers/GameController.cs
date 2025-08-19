@@ -63,7 +63,29 @@ namespace Gazeus.DesafioMatch3.Controllers
             sequence.Append(_boardView.DestroyTiles(boardSequence.MatchedPosition));
             sequence.Append(_boardView.MoveTiles(boardSequence.MovedTiles));
             sequence.Append(_boardView.CreateTile(boardSequence.AddedTiles));
-            sequence.Append(_boardView.LinePowerup(boardSequence.TransformedTiles));
+
+            List<TransformedTileInfo> linePowerups = new List<TransformedTileInfo>();
+            List<TransformedTileInfo> bombPowerups = new List<TransformedTileInfo>();
+
+            foreach ( var transformedTile in boardSequence.TransformedTiles )
+            {
+                if ( transformedTile.NewSpecialType == Enums.SpecialTileType.Bomb )
+                {
+                    bombPowerups.Add(transformedTile);
+                } else
+                {
+                    linePowerups.Add(transformedTile);
+                }
+            }
+
+            if ( linePowerups.Count > 0 )
+            {
+                sequence.Append(_boardView.LinePowerup(linePowerups));
+            }
+            if ( bombPowerups.Count > 0 )
+            {
+                sequence.Append(_boardView.BombPowerup(bombPowerups));
+            }
 
             index += 1;
             if (index < boardSequences.Count)

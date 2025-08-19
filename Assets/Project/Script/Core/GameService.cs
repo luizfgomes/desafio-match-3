@@ -17,7 +17,7 @@ namespace Gazeus.DesafioMatch3.Core
         private Board _currentBoard;
         private int _tileCount = 0;
 
-        public GameService ( BoardFactory boardFactory, IRandomizer randomizer )
+        public GameService (BoardFactory boardFactory, IRandomizer randomizer)
         {
             _boardFactory = boardFactory;
             _randomizer = randomizer;
@@ -128,15 +128,15 @@ namespace Gazeus.DesafioMatch3.Core
         private List<MovedTileInfo> ApplyGravity ( Board board )
         {
             var movedTiles = new List<MovedTileInfo>();
-            for ( int x = 0; x < board.Width; x++ )
+            for (int x = 0; x < board.Width; x++)
             {
                 int writeY = board.Height - 1;
-                for ( int readY = board.Height - 1; readY >= 0; readY-- )
+                for (int readY = board.Height - 1; readY >= 0; readY--)
                 {
                     Tile tile = board.Tiles [readY] [x];
-                    if ( tile.Type != TileType.Empty )
+                    if (tile.Type != TileType.Empty)
                     {
-                        if ( writeY != readY )
+                        if (writeY != readY)
                         {
                             board.Tiles [writeY] [x] = tile;
                             board.Tiles [readY] [x] = new Tile { Id = null, Type = TileType.Empty };
@@ -153,14 +153,14 @@ namespace Gazeus.DesafioMatch3.Core
             return movedTiles;
         }
 
-        private List<AddedTileInfo> RefillBoard ( Board board )
+        private List<AddedTileInfo> RefillBoard (Board board)
         {
             var addedTiles = new List<AddedTileInfo>();
-            for ( int y = 0; y < board.Height; y++ )
+            for (int y = 0; y < board.Height; y++)
             {
-                for ( int x = 0; x < board.Width; x++ )
+                for (int x = 0; x < board.Width; x++)
                 {
-                    if ( board.Tiles [y] [x].Type == TileType.Empty )
+                    if (board.Tiles [y] [x].Type == TileType.Empty)
                     {
                         int tileTypeIndex = _randomizer.Range(0, _tileTypesList.Count);
                         Tile newTile = new Tile
@@ -229,6 +229,28 @@ namespace Gazeus.DesafioMatch3.Core
                         }
                         destroyedPositions.Add(targetPos);
                     }
+                } else if ( tile.Special == SpecialTileType.Bomb )
+                {
+                    for ( int yOffset = -1; yOffset <= 1; yOffset++ )
+                    {
+                        for ( int xOffset = -1; xOffset <= 1; xOffset++ )
+                        {
+                            int targetX = currentPowerupPos.x + xOffset;
+                            int targetY = currentPowerupPos.y + yOffset;
+
+                            if ( targetX >= 0 && targetX < board.Width && targetY >= 0 && targetY < board.Height )
+                            {
+                                var targetPos = new Vector2Int(targetX, targetY);
+                                var targetTile = board.Tiles [targetY] [targetX];
+
+                                if ( targetTile.Special != SpecialTileType.None && !destroyedPositions.Contains(targetPos) )
+                                {
+                                    powerupsToActivate.Enqueue(targetPos);
+                                }
+                                destroyedPositions.Add(targetPos);
+                            }
+                        }
+                    }
                 }
 
                 board.Tiles [currentPowerupPos.y] [currentPowerupPos.x].Special = SpecialTileType.None;
@@ -249,12 +271,18 @@ namespace Gazeus.DesafioMatch3.Core
                         specialTypeToCreate = SpecialTileType.LineClearVertical;
                 }
 
+                if ( match.Direction == MatchDirection.Complex )
+                {
+                    specialTypeToCreate = SpecialTileType.Bomb;
+                }
+
                 if ( specialTypeToCreate != SpecialTileType.None )
                 {
                     if ( specialTileCreationPosition.HasValue && match.MatchedTiles.Contains(specialTileCreationPosition.Value) )
                     {
                         posToTransform = specialTileCreationPosition.Value;
-                    } else
+                    } 
+                    else
                     {
                         posToTransform = match.MatchedTiles.Last();
                     }
