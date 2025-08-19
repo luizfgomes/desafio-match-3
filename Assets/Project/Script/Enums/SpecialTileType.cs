@@ -4,6 +4,7 @@ namespace Gazeus.DesafioMatch3.Enums
     {
         None,
         LineClearHorizontal,
-        LineClearVertical
+        LineClearVertical,
+        Bomb
     }
 }
