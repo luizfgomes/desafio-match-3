@@ -18,6 +18,7 @@ namespace Gazeus.DesafioMatch3.Views
         [SerializeField] private TileSpotView _tileSpotPrefab;
         [SerializeField] private Sprite _linePowerupSprite;
         [SerializeField] private Sprite _bombPowerupSprite;
+        [SerializeField] private VFXAndSFXRepository _vfxAndSfxRepository;
 
         private GameObject[][] _tiles;
         private TileSpotView[][] _tileSpots;
@@ -176,11 +177,11 @@ namespace Gazeus.DesafioMatch3.Views
             return sequence;
         }
 
-        public Tween BombPowerup ( List<TransformedTileInfo> transformedTiles )
+        public Tween BombPowerup (List<TransformedTileInfo> transformedTiles)
         {
             Sequence sequence = DOTween.Sequence();
 
-            for ( int i = 0; i < transformedTiles.Count; i++ )
+            for (int i = 0; i < transformedTiles.Count; i++)
             {
                 var transformedTileInfo = transformedTiles [i];
                 var position = transformedTileInfo.Position;
@@ -202,6 +203,13 @@ namespace Gazeus.DesafioMatch3.Views
                 sequence.Join(specialTileObject.transform.DOScale(1.0f, 0.2f));
             }
             return sequence;
+        }
+
+        public Tween BombPowerupExplosion (Vector2Int position)
+        {
+            Vector3 worldPosition = _tileSpots [position.y] [position.x].transform.position;
+            GameObject particleInstance = Instantiate(_vfxAndSfxRepository.BombParticlePrefab, worldPosition, Quaternion.identity);
+            return DOVirtual.DelayedCall(0.5f, () => Destroy(particleInstance.gameObject));
         }
 
         #region Events
