@@ -10,5 +10,10 @@ namespace Gazeus.DesafioMatch3.ScriptableObjects
 
         public GameObject BombParticlePrefab => _bombParticlePrefab;
         public AudioClip BombSound => _bombSound;
+
+        public void Awake ()
+        {
+            Destroy(this, 2f);
+        }
     }
 }
