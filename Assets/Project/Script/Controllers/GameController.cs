@@ -4,6 +4,8 @@ using DG.Tweening;
 using Gazeus.DesafioMatch3.Core;
 using Gazeus.DesafioMatch3.Models;
 using Gazeus.DesafioMatch3.Views;
+using Gazeus.DesafioMatch3.Core.Abstractions;
+using Gazeus.DesafioMatch3.ScriptableObjects;
 using UnityEngine;
 
 namespace Gazeus.DesafioMatch3.Controllers
@@ -14,20 +16,27 @@ namespace Gazeus.DesafioMatch3.Controllers
         [SerializeField] private ScoreView _scoreView;
         [SerializeField] private int _boardHeight = 10;
         [SerializeField] private int _boardWidth = 10;
+        [SerializeField] private VFXAndSFXRepository _vfxAndSfxRepository;
+        private AudioSource _audioSource;
 
         private GameService _gameEngine;
         private ScoreModel _scoreModel;
         private ScoreController _scoreController;
 
         private bool _isAnimating;
-        private int _selectedX = -1;
-        private int _selectedY = -1;
+        private Vector2Int? _selectedTilePosition;
 
         #region Unity
         private void Awake()
         {
-            _gameEngine = new GameService();
+            IRandomizer randomizer = new Randomizer();
+            BoardFactory factory = new BoardFactory(randomizer);
+            _gameEngine = new GameService(factory, randomizer);
+            _gameEngine.StartGame(_boardWidth, _boardHeight);
+
             _boardView.TileClicked += OnTileClick;
+
+            _audioSource = GetComponent<AudioSource>();
 
             _scoreModel = new ScoreModel();
             _scoreController = new ScoreController(_scoreModel, _scoreView);
@@ -60,6 +69,38 @@ namespace Gazeus.DesafioMatch3.Controllers
             sequence.Append(_boardView.MoveTiles(boardSequence.MovedTiles));
             sequence.Append(_boardView.CreateTile(boardSequence.AddedTiles));
 
+            List<TransformedTileInfo> linePowerups = new List<TransformedTileInfo>();
+            List<TransformedTileInfo> bombPowerups = new List<TransformedTileInfo>();
+
+            foreach ( var transformedTile in boardSequence.TransformedTiles )
+            {
+                if (transformedTile.NewSpecialType == Enums.SpecialTileType.Bomb)
+                {
+                    bombPowerups.Add(transformedTile);
+                } else
+                {
+                    linePowerups.Add(transformedTile);
+                }
+            }
+
+            foreach (var activatedPowerup in boardSequence.ActivatedPowerups)
+            {
+                if (activatedPowerup.SpecialType == Enums.SpecialTileType.Bomb)
+                {
+                    _audioSource.PlayOneShot(_vfxAndSfxRepository.BombSound);
+                    sequence.Append(_boardView.BombPowerupExplosion(activatedPowerup.Position));
+                }
+            }
+
+            if ( linePowerups.Count > 0 )
+            {
+                sequence.Append(_boardView.LinePowerup(linePowerups));
+            }
+            if ( bombPowerups.Count > 0 )
+            {
+                sequence.Append(_boardView.BombPowerup(bombPowerups));
+            }
+
             index += 1;
             if (index < boardSequences.Count)
             {
@@ -71,41 +112,77 @@ namespace Gazeus.DesafioMatch3.Controllers
             }
         }
 
-        private void OnTileClick(int x, int y)
+        private void OnTileClick (int x, int y)
         {
-            if (_isAnimating) return;
+            if ( _isAnimating )
+                return;
 
-            if (_selectedX > -1 && _selectedY > -1)
+            Vector2Int clickedPosition = new Vector2Int(x, y);
+
+            if ( !_selectedTilePosition.HasValue )
             {
-                if (Mathf.Abs(_selectedX - x) + Mathf.Abs(_selectedY - y) > 1)
-                {
-                    _selectedX = -1;
-                    _selectedY = -1;
-                }
-                else
-                {
-                    _isAnimating = true;
-                    _boardView.SwapTiles(_selectedX, _selectedY, x, y).onComplete += () =>
-                    {
-                        bool isValid = _gameEngine.IsValidMovement(_selectedX, _selectedY, x, y);
-                        if (isValid)
-                        {
-                            List<BoardSequence> swapResult = _gameEngine.SwapTile(_selectedX, _selectedY, x, y);
-                            AnimateBoard(swapResult, 0, () => _isAnimating = false);
-                        }
-                        else
-                        {
-                            _boardView.SwapTiles(x, y, _selectedX, _selectedY).onComplete += () => _isAnimating = false;
-                        }
-                        _selectedX = -1;
-                        _selectedY = -1;
-                    };
-                }
+                SelectTile(clickedPosition);
+            } 
+            else
+            {
+                ProcessSecondTileClick(clickedPosition);
+            }
+        }
+
+
+        private void ProcessSecondTileClick(Vector2Int clickedPosition )
+        {
+            Vector2Int firstPosition = _selectedTilePosition.Value;
+
+            if ( firstPosition == clickedPosition )
+            {
+                DiselectTile();
+                return;
+            }
+
+            if ( Mathf.Abs(firstPosition.x - clickedPosition.x) + Mathf.Abs(firstPosition.y - clickedPosition.y) > 1 )
+            {
+                DiselectTile();
+                SelectTile(clickedPosition);
+                return;
+            }
+
+            ValidateSwap(firstPosition, clickedPosition);
+        }
+
+        private void ValidateSwap (Vector2Int from, Vector2Int to)
+        {
+            _isAnimating = true;
+            DiselectTile();
+
+            _boardView.SwapTiles(from.x, from.y, to.x, to.y).onComplete += () => SwapFinishedAnimation(from, to);
+        }
+
+        private void SwapFinishedAnimation (Vector2Int from, Vector2Int to)
+        {
+            bool isValid = _gameEngine.IsValidMovement(from.x, from.y, to.x, to.y);
+
+            if ( !isValid )
+            {
+                _boardView.SwapTiles(to.x, to.y, from.x, from.y).onComplete += () => _isAnimating = false;
             }
             else
             {
-                _selectedX = x;
-                _selectedY = y;
+                List<BoardSequence> swapResult = _gameEngine.SwapTile(from.x, from.y, to.x, to.y);
+                AnimateBoard(swapResult, 0, () => _isAnimating = false);
+            }
+        }
+
+        private void SelectTile (Vector2Int position)
+        {
+            _selectedTilePosition = position;
+        }
+
+        private void DiselectTile ()
+        {
+            if ( _selectedTilePosition.HasValue )
+            {
+                _selectedTilePosition = null;
             }
         }
     }

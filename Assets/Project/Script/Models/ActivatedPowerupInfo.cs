@@ -3,9 +3,9 @@ using UnityEngine;
 
 namespace Gazeus.DesafioMatch3.Models
 {
-    public class TransformedTileInfo : MonoBehaviour
+    public class ActivatedPowerupInfo
     {
         public Vector2Int Position { get; set; }
-        public SpecialTileType NewSpecialType { get; set; }
+        public SpecialTileType SpecialType { get; set; }
     }
 }

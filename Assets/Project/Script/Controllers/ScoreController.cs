@@ -19,7 +19,22 @@ namespace Gazeus.DesafioMatch3.Controllers
 
         public void OnTilesMatched (int matchedCount)
         {
-            int points = matchedCount * PointsValue;
+            int points = 0;
+            int basePoints = matchedCount * PointsValue;
+
+            if (matchedCount >= 5)
+            {
+                points = basePoints + 50;
+            } 
+            else if (matchedCount >= 4)
+            {
+                points = basePoints + 20;
+            } 
+            else
+            {
+                points = basePoints;
+            }
+
             _scoreModel.AddScore(points);
         }
     }

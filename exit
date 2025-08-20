@@ -1,0 +1,408 @@
+[1mdiff --git a/Assets/Project/Script/Core/GameService.cs b/Assets/Project/Script/Core/GameService.cs[m
+[1mindex b386a6e..64f455b 100644[m
+[1m--- a/Assets/Project/Script/Core/GameService.cs[m
+[1m+++ b/Assets/Project/Script/Core/GameService.cs[m
+[36m@@ -1,6 +1,8 @@[m
+ using System.Collections.Generic;[m
+ using Gazeus.DesafioMatch3.Models;[m
+[32m+[m[32musing Gazeus.DesafioMatch3.Enums;[m
+ using UnityEngine;[m
+[32m+[m[32musing System.Linq;[m
+ [m
+ namespace Gazeus.DesafioMatch3.Core[m
+ {[m
+[36m@@ -50,97 +52,123 @@[m [mnamespace Gazeus.DesafioMatch3.Core[m
+         public List<BoardSequence> SwapTile(int fromX, int fromY, int toX, int toY)[m
+         {[m
+             List<List<Tile>> newBoard = CopyBoard(_boardTiles);[m
+[31m-[m
+             (newBoard[toY][toX], newBoard[fromY][fromX]) = (newBoard[fromY][fromX], newBoard[toY][toX]);[m
+ [m
+             List<BoardSequence> boardSequences = new();[m
+[31m-            List<List<bool>> matchedTiles = FindMatches(newBoard);[m
+[32m+[m[32m            List<MatchInfos> allMatches = FindCompleteMatches(newBoard);[m
+ [m
+[31m-            while (HasMatch(matchedTiles))[m
+[32m+[m[32m            while ( allMatches.Count > 0 )[m
+             {[m
+[31m-                //Cleaning the matched tiles[m
+[31m-                List<Vector2Int> matchedPosition = new();[m
+[31m-                for (int y = 0; y < newBoard.Count; y++)[m
+[32m+[m
+[32m+[m[32m                SpecialTileType specialTypeToCreate = SpecialTileType.None;[m
+[32m+[m[32m                Vector2Int specialTileCreationPos = new Vector2Int(-1, -1);[m
+[32m+[m
+[32m+[m[32m                // Create the power tile;[m
+[32m+[m[32m                foreach ( var match in allMatches )[m
+                 {[m
+[31m-                    for (int x = 0; x < newBoard[y].Count; x++)[m
+[32m+[m[32m                    if ( match.Count >= 4 )[m
+                     {[m
+[31m-                        if (matchedTiles[y][x])[m
+[32m+[m[32m                        specialTypeToCreate = (match.Direction == MatchDirection.Horizontal) ? SpecialTileType.LineClearHorizontal : SpecialTileType.LineClearVertical;[m
+[32m+[m
+[32m+[m[32m                        Vector2Int movedPiecePos = new Vector2Int(toX, toY);[m
+[32m+[m[32m                        if ( match.MatchedTiles.Contains(movedPiecePos) )[m
+                         {[m
+[31m-                            matchedPosition.Add(new Vector2Int(x, y));[m
+[31m-                            newBoard[y][x] = new Tile { Id = -1, Type = -1 };[m
+[32m+[m[32m                            specialTileCreationPos = movedPiecePos;[m
+[32m+[m[32m                        } else[m
+[32m+[m[32m                        {[m
+[32m+[m[32m                            specialTileCreationPos = match.MatchedTiles [0];[m
+                         }[m
+[32m+[m[32m                        break;[m
+[32m+[m[32m                    }[m
+[32m+[m[32m                }[m
+[32m+[m
+[32m+[m[32m                //New cleaning the matched tiles[m
+[32m+[m[32m                HashSet<Vector2Int> positionsToProcess = new HashSet<Vector2Int>();[m
+[32m+[m[32m                foreach ( var match in allMatches )[m
+[32m+[m[32m                {[m
+[32m+[m[32m                    foreach ( var pos in match.MatchedTiles )[m
+[32m+[m[32m                    {[m
+[32m+[m[32m                        positionsToProcess.Add(pos);[m
+[32m+[m[32m                    }[m
+[32m+[m[32m                }[m
+[32m+[m
+[32m+[m[32m                List<Vector2Int> finalMatchedPositions = new List<Vector2Int>();[m
+[32m+[m[32m                List<TransformedTileInfo> transformedTiles = new List<TransformedTileInfo>();[m
+[32m+[m
+[32m+[m[32m                foreach ( Vector2Int pos in positionsToProcess )[m
+[32m+[m[32m                {[m
+[32m+[m[32m                    if ( pos == specialTileCreationPos )[m
+[32m+[m[32m                    {[m
+[32m+[m[32m                        newBoard [pos.y] [pos.x].Special = specialTypeToCreate;[m
+[32m+[m[32m                        transformedTiles.Add(new TransformedTileInfo[m
+[32m+[m[32m                        {[m
+[32m+[m[32m                            Position = pos,[m
+[32m+[m[32m                            NewSpecialType = specialTypeToCreate[m
+[32m+[m[32m                        });[m
+[32m+[m[32m                    } else[m
+[32m+[m[32m                    {[m
+[32m+[m[32m                        newBoard [pos.y] [pos.x].Type = -1;[m
+[32m+[m[32m                        newBoard [pos.y] [pos.x].Special = SpecialTileType.None;[m
+[32m+[m[32m                        finalMatchedPositions.Add(pos);[m
+                     }[m
+                 }[m
+ [m
+[31m-                // Dropping the tiles[m
+[31m-                Dictionary<int, MovedTileInfo> movedTiles = new();[m
+[31m-                List<MovedTileInfo> movedTilesList = new();[m
+[31m-                for (int i = 0; i < matchedPosition.Count; i++)[m
+[32m+[m[32m                // New dropping the tiles[m
+[32m+[m[32m                List<MovedTileInfo> movedTilesList = new List<MovedTileInfo>();[m
+[32m+[m[32m                var affectedColumns = positionsToProcess.Select(p => p.x).Distinct();[m
+[32m+[m
+[32m+[m[32m                foreach ( int x in affectedColumns )[m
+                 {[m
+[31m-                    int x = matchedPosition[i].x;[m
+[31m-                    int y = matchedPosition[i].y;[m
+[31m-                    if (y > 0)[m
+[32m+[m[32m                    int writeY = newBoard.Count - 1;[m
+[32m+[m[32m                    for ( int readY = newBoard.Count - 1; readY >= 0; readY-- )[m
+                     {[m
+[31m-                        for (int j = y; j > 0; j--)[m
+[32m+[m[32m                        Tile tile = newBoard [readY] [x];[m
+[32m+[m[32m                        if ( tile.Type != -1 )[m[41m [m
+                         {[m
+[31m-                            Tile movedTile = newBoard[j - 1][x];[m
+[31m-                            newBoard[j][x] = movedTile;[m
+[31m-                            if (movedTile.Type > -1)[m
+[32m+[m[32m                            if ( writeY != readY )[m
+                             {[m
+[31m-                                if (movedTiles.ContainsKey(movedTile.Id))[m
+[31m-                                {[m
+[31m-                                    movedTiles[movedTile.Id].To = new Vector2Int(x, j);[m
+[31m-                                }[m
+[31m-                                else[m
+[32m+[m[32m                                movedTilesList.Add(new MovedTileInfo[m
+                                 {[m
+[31m-                                    MovedTileInfo movedTileInfo = new()[m
+[31m-                                    {[m
+[31m-                                        From = new Vector2Int(x, j - 1),[m
+[31m-                                        To = new Vector2Int(x, j)[m
+[31m-                                    };[m
+[31m-                                    movedTiles.Add(movedTile.Id, movedTileInfo);[m
+[31m-                                    movedTilesList.Add(movedTileInfo);[m
+[31m-                                }[m
+[32m+[m[32m                                    From = new Vector2Int(x, readY),[m
+[32m+[m[32m                                    To = new Vector2Int(x, writeY)[m
+[32m+[m[32m                                });[m
+[32m+[m[32m                                newBoard [writeY] [x] = tile;[m
+[32m+[m[32m                                newBoard [readY] [x] = new Tile { Id = -1, Type = -1 };[m
+                             }[m
+[32m+[m[32m                            writeY--;[m
+                         }[m
+[31m-[m
+[31m-                        newBoard[0][x] = new Tile[m
+[31m-                        {[m
+[31m-                            Id = -1,[m
+[31m-                            Type = -1[m
+[31m-                        };[m
+                     }[m
+                 }[m
+ [m
+[31m-                // Filling the board[m
+                 List<AddedTileInfo> addedTiles = new();[m
+[31m-                for (int y = newBoard.Count - 1; y > -1; y--)[m
+[32m+[m[32m                for ( int y = 0; y < newBoard.Count; y++ )[m
+                 {[m
+[31m-                    for (int x = newBoard[y].Count - 1; x > -1; x--)[m
+[32m+[m[32m                    for ( int x = 0; x < newBoard [y].Count; x++ )[m
+                     {[m
+[31m-                        if (newBoard[y][x].Type == -1)[m
+[32m+[m[32m                        if ( newBoard [y] [x].Type == -1 )[m
+                         {[m
+                             int tileType = Random.Range(0, _tilesTypes.Count);[m
+[31m-                            Tile tile = newBoard[y][x];[m
+[31m-                            tile.Id = _tileCount++;[m
+[31m-                            tile.Type = _tilesTypes[tileType];[m
+[31m-                            addedTiles.Add(new AddedTileInfo[m
+[32m+[m[32m                            Tile tile = new Tile[m
+                             {[m
+[31m-                                Position = new Vector2Int(x, y),[m
+[31m-                                Type = tile.Type[m
+[31m-                            });[m
+[32m+[m[32m                                Id = _tileCount++,[m
+[32m+[m[32m                                Type = _tilesTypes [tileType],[m
+[32m+[m[32m                                Special = SpecialTileType.None[m
+[32m+[m[32m                            };[m
+[32m+[m[32m                            newBoard [y] [x] = tile;[m
+[32m+[m[32m                            addedTiles.Add(new AddedTileInfo { Position = new Vector2Int(x, y), Type = tile.Type });[m
+                         }[m
+                     }[m
+                 }[m
+ [m
+                 BoardSequence sequence = new()[m
+                 {[m
+[31m-                    MatchedPosition = matchedPosition,[m
+[32m+[m[32m                    MatchedPosition = finalMatchedPositions,[m
+                     MovedTiles = movedTilesList,[m
+[31m-                    AddedTiles = addedTiles[m
+[32m+[m[32m                    AddedTiles = addedTiles,[m
+[32m+[m[32m                    TransformedTiles = transformedTiles[m
+                 };[m
+                 boardSequences.Add(sequence);[m
+[31m-                matchedTiles = FindMatches(newBoard);[m
+[32m+[m[32m                allMatches = FindCompleteMatches(newBoard);[m
+             }[m
+ [m
+             _boardTiles = newBoard;[m
+[36m@@ -148,6 +176,92 @@[m [mnamespace Gazeus.DesafioMatch3.Core[m
+             return boardSequences;[m
+         }[m
+ [m
+[32m+[m[32m        private List<MatchInfos> FindCompleteMatches(List<List<Tile>> board)[m
+[32m+[m[32m        {[m
+[32m+[m[32m            List<MatchInfos> allMatches = new List<MatchInfos>();[m
+[32m+[m
+[32m+[m[32m            // Horizontal verification[m
+[32m+[m[32m            for (int y = 0; y < board.Count; y++ )[m
+[32m+[m[32m            {[m
+[32m+[m[32m                // Loop stops at 'Count - 2' as it's the last safe position[m
+[32m+[m[32m                // to start checking for a 3-tile match (at x, x+1, and x+2)[m
+[32m+[m[32m                for ( int x = 0; x < board[y].Count -2; )[m
+[32m+[m[32m                {[m
+[32m+[m[32m                    Tile currentTile = board [y] [x];[m
+[32m+[m
+[32m+[m[32m                    // Guard Clause[m
+[32m+[m[32m                    if ( currentTile.Type == -1 )[m
+[32m+[m[32m                    {[m
+[32m+[m[32m                        x++;[m
+[32m+[m[32m                        continue;[m
+[32m+[m[32m                    }[m
+[32m+[m
+[32m+[m[32m                    List<Vector2Int> currentMatch = new List<Vector2Int>();[m
+[32m+[m[32m                    currentMatch.Add(new Vector2Int(x, y));[m
+[32m+[m
+[32m+[m[32m                    for ( int i = x + 1; i < board [y].Count; i++ )[m
+[32m+[m[32m                    {[m
+[32m+[m[32m                        if ( board[y][i].Type == currentTile.Type )[m
+[32m+[m[32m                        {[m
+[32m+[m[32m                            currentMatch.Add(new Vector2Int(i, y));[m
+[32m+[m[32m                        }[m[41m [m
+[32m+[m[32m                        else[m
+[32m+[m[32m                        {[m
+[32m+[m[32m                            break;[m
+[32m+[m[32m                        }[m
+[32m+[m[32m                    }[m
+[32m+[m
+[32m+[m[32m                    if(currentMatch.Count >= 3 )[m
+[32m+[m[32m                    {[m
+[32m+[m[32m                        allMatches.Add(new MatchInfos(currentMatch, MatchDirection.Horizontal));[m
+[32m+[m[32m                    }[m
+[32m+[m
+[32m+[m[32m                    // Advance the cursor past the checked tiles to avoid redundant verification[m
+[32m+[m[32m                    x += currentMatch.Count;[m
+[32m+[m[32m                }[m
+[32m+[m[32m            }[m
+[32m+[m
+[32m+[m[32m            // Vertical verification[m
+[32m+[m[32m            // The information below is identical to the code above, but applied to the vertical axis[m
+[32m+[m[32m            for ( int x = 0; x < board[0].Count; x++ )[m
+[32m+[m[32m            {[m
+[32m+[m[32m                for (int y = 0; y < board.Count -2; )[m
+[32m+[m[32m                {[m
+[32m+[m[32m                    Tile currentTile = board [y] [x];[m
+[32m+[m
+[32m+[m[32m                    if(currentTile.Type == -1 )[m
+[32m+[m[32m                    {[m
+[32m+[m[32m                        y++;[m
+[32m+[m[32m                        continue;[m
+[32m+[m[32m                    }[m
+[32m+[m
+[32m+[m[32m                    List<Vector2Int> currentMatch = new List<Vector2Int>();[m
+[32m+[m[32m                    currentMatch.Add(new Vector2Int(x, y));[m
+[32m+[m
+[32m+[m[32m                    for ( int i = y + 1; i < board.Count; i++ )[m
+[32m+[m[32m                    {[m
+[32m+[m[32m                        if ( board [i] [x].Type == currentTile.Type )[m
+[32m+[m[32m                        {[m
+[32m+[m[32m                            currentMatch.Add(new Vector2Int(x, i));[m
+[32m+[m[32m                        } else[m
+[32m+[m[32m                        {[m
+[32m+[m[32m                            break;[m
+[32m+[m[32m                        }[m
+[32m+[m[32m                    }[m
+[32m+[m
+[32m+[m[32m                    if ( currentMatch.Count >= 3 )[m
+[32m+[m[32m                    {[m
+[32m+[m
+[32m+[m[32m                        allMatches.Add(new MatchInfos(currentMatch, MatchDirection.Vertical));[m
+[32m+[m[32m                    }[m
+[32m+[m
+[32m+[m[32m                    y += currentMatch.Count;[m
+[32m+[m[32m                }[m
+[32m+[m[32m            }[m
+[32m+[m
+[32m+[m[32m            return allMatches;[m
+[32m+[m[32m        }[m
+[32m+[m
+         private static List<List<Tile>> CopyBoard(List<List<Tile>> boardToCopy)[m
+         {[m
+             List<List<Tile>> newBoard = new(boardToCopy.Count);[m
+[36m@@ -157,7 +271,8 @@[m [mnamespace Gazeus.DesafioMatch3.Core[m
+                 for (int x = 0; x < boardToCopy[y].Count; x++)[m
+                 {[m
+                     Tile tile = boardToCopy[y][x];[m
+[31m-                    newBoard[y].Add(new Tile { Id = tile.Id, Type = tile.Type });[m
+[32m+[m
+[32m+[m[32m                    newBoard [y].Add(new Tile { Id = tile.Id, Type = tile.Type, Special = tile.Special });[m
+                 }[m
+             }[m
+ [m
+[36m@@ -207,59 +322,59 @@[m [mnamespace Gazeus.DesafioMatch3.Core[m
+             return board;[m
+         }[m
+ [m
+[31m-        private static List<List<bool>> FindMatches(List<List<Tile>> newBoard)[m
+[31m-        {[m
+[31m-            List<List<bool>> matchedTiles = new();[m
+[31m-            for (int y = 0; y < newBoard.Count; y++)[m
+[31m-            {[m
+[31m-                matchedTiles.Add(new List<bool>(newBoard[y].Count));[m
+[31m-                for (int x = 0; x < newBoard.Count; x++)[m
+[31m-                {[m
+[31m-                    matchedTiles[y].Add(false);[m
+[31m-                }[m
+[31m-            }[m
+[31m-[m
+[31m-            for (int y = 0; y < newBoard.Count; y++)[m
+[31m-            {[m
+[31m-                for (int x = 0; x < newBoard[y].Count; x++)[m
+[31m-                {[m
+[31m-                    if (x > 1 &&[m
+[31m-                        newBoard[y][x].Type == newBoard[y][x - 1].Type &&[m
+[31m-                        newBoard[y][x - 1].Type == newBoard[y][x - 2].Type)[m
+[31m-                    {[m
+[31m-                        matchedTiles[y][x] = true;[m
+[31m-                        matchedTiles[y][x - 1] = true;[m
+[31m-                        matchedTiles[y][x - 2] = true;[m
+[31m-                    }[m
+[31m-[m
+[31m-                    if (y > 1 &&[m
+[31m-                        newBoard[y][x].Type == newBoard[y - 1][x].Type &&[m
+[31m-                        newBoard[y - 1][x].Type == newBoard[y - 2][x].Type)[m
+[31m-                    {[m
+[31m-                        matchedTiles[y][x] = true;[m
+[31m-                        matchedTiles[y - 1][x] = true;[m
+[31m-                        matchedTiles[y - 2][x] = true;[m
+[31m-                    }[m
+[31m-                }[m
+[31m-            }[m
+[31m-[m
+[31m-            return matchedTiles;[m
+[31m-        }[m
+[31m-[m
+[31m-        private static bool HasMatch(List<List<bool>> list)[m
+[31m-        {[m
+[31m-            for (int y = 0; y < list.Count; y++)[m
+[31m-            {[m
+[31m-                for (int x = 0; x < list[y].Count; x++)[m
+[31m-                {[m
+[31m-                    if (list[y][x])[m
+[31m-                    {[m
+[31m-                        return true;[m
+[31m-                    }[m
+[31m-                }[m
+[31m-            }[m
+[31m-[m
+[31m-            return false;[m
+[31m-        }[m
+[32m+[m[32m        //private static List<List<bool>> FindMatches(List<List<Tile>> newBoard)[m
+[32m+[m[32m        //{[m
+[32m+[m[32m        //    List<List<bool>> matchedTiles = new();[m
+[32m+[m[32m        //    for (int y = 0; y < newBoard.Count; y++)[m
+[32m+[m[32m        //    {[m
+[32m+[m[32m        //        matchedTiles.Add(new List<bool>(newBoard[y].Count));[m
+[32m+[m[32m        //        for (int x = 0; x < newBoard.Count; x++)[m
+[32m+[m[32m        //        {[m
+[32m+[m[32m        //            matchedTiles[y].Add(false);[m
+[32m+[m[32m        //        }[m
+[32m+[m[32m        //    }[m
+[32m+[m
+[32m+[m[32m        //    for (int y = 0; y < newBoard.Count; y++)[m
+[32m+[m[32m        //    {[m
+[32m+[m[32m        //        for (int x = 0; x < newBoard[y].Count; x++)[m
+[32m+[m[32m        //        {[m
+[32m+[m[32m        //            if (x > 1 &&[m
+[32m+[m[32m        //                newBoard[y][x].Type == newBoard[y][x - 1].Type &&[m
+[32m+[m[32m        //                newBoard[y][x - 1].Type == newBoard[y][x - 2].Type)[m
+[32m+[m[32m        //            {[m
+[32m+[m[32m        //                matchedTiles[y][x] = true;[m
+[32m+[m[32m        //                matchedTiles[y][x - 1] = true;[m
+[32m+[m[32m        //                matchedTiles[y][x - 2] = true;[m
+[32m+[m[32m        //            }[m
+[32m+[m
+[32m+[m[32m        //            if (y > 1 &&[m
+[32m+[m[32m        //                newBoard[y][x].Type == newBoard[y - 1][x].Type &&[m
+[32m+[m[32m        //                newBoard[y - 1][x].Type == newBoard[y - 2][x].Type)[m
+[32m+[m[32m        //            {[m
+[32m+[m[32m        //                matchedTiles[y][x] = true;[m
+[32m+[m[32m        //                matchedTiles[y - 1][x] = true;[m
+[32m+[m[32m        //                matchedTiles[y - 2][x] = true;[m
+[32m+[m[32m        //            }[m
+[32m+[m[32m        //        }[m
+[32m+[m[32m        //    }[m
+[32m+[m
+[32m+[m[32m        //    return matchedTiles;[m
+[32m+[m[32m        //}[m
+[32m+[m
+[32m+[m[32m        //private static bool HasMatch(List<List<bool>> list)[m
+[32m+[m[32m        //{[m
+[32m+[m[32m        //    for (int y = 0; y < list.Count; y++)[m
+[32m+[m[32m        //    {[m
+[32m+[m[32m        //        for (int x = 0; x < list[y].Count; x++)[m
+[32m+[m[32m        //        {[m
+[32m+[m[32m        //            if (list[y][x])[m
+[32m+[m[32m        //            {[m
+[32m+[m[32m        //                return true;[m
+[32m+[m[32m        //            }[m
+[32m+[m[32m        //        }[m
+[32m+[m[32m        //    }[m
+[32m+[m
+[32m+[m[32m        //    return false;[m
+[32m+[m[32m        //}[m
+     }[m
+ }[m

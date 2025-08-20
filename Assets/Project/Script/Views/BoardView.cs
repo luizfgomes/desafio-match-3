@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using DG.Tweening;
+using Gazeus.DesafioMatch3.Enums;
 using Gazeus.DesafioMatch3.Models;
 using Gazeus.DesafioMatch3.ScriptableObjects;
 using UnityEngine;
@@ -15,6 +16,9 @@ namespace Gazeus.DesafioMatch3.Views
         [SerializeField] private GridLayoutGroup _boardContainer;
         [SerializeField] private TilePrefabRepository _tilePrefabRepository;
         [SerializeField] private TileSpotView _tileSpotPrefab;
+        [SerializeField] private Sprite _linePowerupSprite;
+        [SerializeField] private Sprite _bombPowerupSprite;
+        [SerializeField] private VFXAndSFXRepository _vfxAndSfxRepository;
 
         private GameObject[][] _tiles;
         private TileSpotView[][] _tileSpots;
@@ -39,14 +43,16 @@ namespace Gazeus.DesafioMatch3.Views
 
                     _tileSpots[y][x] = tileSpot;
 
-                    int tileTypeIndex = board[y][x].Type;
-                    if (tileTypeIndex > -1)
+                    TileType tileType = board [y] [x].Type;
+                    if ( tileType != TileType.Empty )
                     {
-                        GameObject tilePrefab = _tilePrefabRepository.TileTypePrefabList[tileTypeIndex];
+                        int tileTypeIndex = (int) tileType;
+
+                        GameObject tilePrefab = _tilePrefabRepository.TileTypePrefabList [tileTypeIndex];
+
                         GameObject tile = Instantiate(tilePrefab);
                         tileSpot.SetTile(tile);
-
-                        _tiles[y][x] = tile;
+                        _tiles [y] [x] = tile;
                     }
                 }
             }
@@ -55,6 +61,7 @@ namespace Gazeus.DesafioMatch3.Views
         public Tween CreateTile(List<AddedTileInfo> addedTiles)
         {
             Sequence sequence = DOTween.Sequence();
+
             for (int i = 0; i < addedTiles.Count; i++)
             {
                 AddedTileInfo addedTileInfo = addedTiles[i];
@@ -62,11 +69,13 @@ namespace Gazeus.DesafioMatch3.Views
 
                 TileSpotView tileSpot = _tileSpots[position.y][position.x];
 
-                GameObject tilePrefab = _tilePrefabRepository.TileTypePrefabList[addedTileInfo.Type];
+                int tileTypeIndex = (int) addedTileInfo.Type;
+
+                GameObject tilePrefab = _tilePrefabRepository.TileTypePrefabList [tileTypeIndex];
+
                 GameObject tile = Instantiate(tilePrefab);
                 tileSpot.SetTile(tile);
-
-                _tiles[position.y][position.x] = tile;
+                _tiles [position.y] [position.x] = tile;
 
                 tile.transform.localScale = Vector2.zero;
                 sequence.Join(tile.transform.DOScale(1.0f, 0.2f));
@@ -100,6 +109,7 @@ namespace Gazeus.DesafioMatch3.Views
             }
 
             Sequence sequence = DOTween.Sequence();
+
             for (int i = 0; i < movedTiles.Count; i++)
             {
                 MovedTileInfo movedTileInfo = movedTiles[i];
@@ -120,12 +130,86 @@ namespace Gazeus.DesafioMatch3.Views
         public Tween SwapTiles(int fromX, int fromY, int toX, int toY)
         {
             Sequence sequence = DOTween.Sequence();
+
             sequence.Append(_tileSpots[fromY][fromX].AnimatedSetTile(_tiles[toY][toX]));
             sequence.Join(_tileSpots[toY][toX].AnimatedSetTile(_tiles[fromY][fromX]));
 
             (_tiles[toY][toX], _tiles[fromY][fromX]) = (_tiles[fromY][fromX], _tiles[toY][toX]);
 
             return sequence;
+        }
+
+        public Tween LinePowerup ( List<TransformedTileInfo> transformedTiles )
+        {
+            Sequence sequence = DOTween.Sequence();
+
+            for ( int i = 0; i < transformedTiles.Count; i++ )
+            {
+                var transformedTileInfo = transformedTiles[i];
+                var position = transformedTileInfo.Position;
+                var tile = _tiles [position.y] [position.x];
+                var specialTileObject = new GameObject("LinePowerup", typeof(Image));
+                Transform? specialTileTransform;
+
+                specialTileObject.transform.SetParent(tile.transform, false); 
+
+                var specialTileImage = specialTileObject.GetComponent<Image>();
+                specialTileImage.sprite = _linePowerupSprite;
+
+                RectTransform rectTransform = specialTileImage.rectTransform;
+                rectTransform.anchorMin = Vector2.zero;
+                rectTransform.anchorMax = Vector2.one;
+                rectTransform.sizeDelta = Vector2.zero;
+
+                specialTileTransform = specialTileObject.transform;
+                specialTileTransform.localScale = Vector3.zero;
+
+                if ( transformedTileInfo.NewSpecialType == SpecialTileType.LineClearHorizontal )
+                {
+                    specialTileTransform.localRotation = Quaternion.Euler(0, 0, 0);
+                } else if ( transformedTileInfo.NewSpecialType == SpecialTileType.LineClearVertical )
+                {
+                    specialTileTransform.localRotation = Quaternion.Euler(0, 0, 90);
+                }
+
+                sequence.Join(specialTileTransform.DOScale(1.0f, 0.2f));
+            }
+            return sequence;
+        }
+
+        public Tween BombPowerup (List<TransformedTileInfo> transformedTiles)
+        {
+            Sequence sequence = DOTween.Sequence();
+
+            for (int i = 0; i < transformedTiles.Count; i++)
+            {
+                var transformedTileInfo = transformedTiles [i];
+                var position = transformedTileInfo.Position;
+                var tile = _tiles [position.y] [position.x];
+                var specialTileObject = new GameObject("BombPowerup", typeof(Image));
+
+                specialTileObject.transform.SetParent(tile.transform, false);
+
+                var specialTileImage = specialTileObject.GetComponent<Image>();
+                specialTileImage.sprite = _bombPowerupSprite;
+
+                RectTransform rectTransform = specialTileImage.rectTransform;
+                rectTransform.anchorMin = Vector2.zero;
+                rectTransform.anchorMax = Vector2.one;
+                rectTransform.sizeDelta = Vector2.zero;
+
+                specialTileObject.transform.localScale = Vector3.zero;
+
+                sequence.Join(specialTileObject.transform.DOScale(1.0f, 0.2f));
+            }
+            return sequence;
+        }
+
+        public Tween BombPowerupExplosion (Vector2Int position)
+        {
+            Vector3 worldPosition = _tileSpots [position.y] [position.x].transform.position;
+            GameObject particleInstance = Instantiate(_vfxAndSfxRepository.BombParticlePrefab, worldPosition, Quaternion.identity);
+            return DOVirtual.DelayedCall(0.5f, () => Destroy(particleInstance.gameObject));
         }
 
         #region Events
