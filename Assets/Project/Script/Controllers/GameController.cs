@@ -5,6 +5,7 @@ using Gazeus.DesafioMatch3.Core;
 using Gazeus.DesafioMatch3.Models;
 using Gazeus.DesafioMatch3.Views;
 using Gazeus.DesafioMatch3.Core.Abstractions;
+using Gazeus.DesafioMatch3.ScriptableObjects;
 using UnityEngine;
 
 namespace Gazeus.DesafioMatch3.Controllers
@@ -15,6 +16,8 @@ namespace Gazeus.DesafioMatch3.Controllers
         [SerializeField] private ScoreView _scoreView;
         [SerializeField] private int _boardHeight = 10;
         [SerializeField] private int _boardWidth = 10;
+        [SerializeField] private VFXAndSFXRepository _vfxAndSfxRepository;
+        private AudioSource _audioSource;
 
         private GameService _gameEngine;
         private ScoreModel _scoreModel;
@@ -32,6 +35,8 @@ namespace Gazeus.DesafioMatch3.Controllers
             _gameEngine.StartGame(_boardWidth, _boardHeight);
 
             _boardView.TileClicked += OnTileClick;
+
+            _audioSource = GetComponent<AudioSource>();
 
             _scoreModel = new ScoreModel();
             _scoreController = new ScoreController(_scoreModel, _scoreView);
@@ -69,12 +74,21 @@ namespace Gazeus.DesafioMatch3.Controllers
 
             foreach ( var transformedTile in boardSequence.TransformedTiles )
             {
-                if ( transformedTile.NewSpecialType == Enums.SpecialTileType.Bomb )
+                if (transformedTile.NewSpecialType == Enums.SpecialTileType.Bomb)
                 {
                     bombPowerups.Add(transformedTile);
                 } else
                 {
                     linePowerups.Add(transformedTile);
+                }
+            }
+
+            foreach (var activatedPowerup in boardSequence.ActivatedPowerups)
+            {
+                if (activatedPowerup.SpecialType == Enums.SpecialTileType.Bomb)
+                {
+                    _audioSource.PlayOneShot(_vfxAndSfxRepository.BombSound);
+                    sequence.Append(_boardView.BombPowerupExplosion(activatedPowerup.Position));
                 }
             }
 
@@ -115,10 +129,6 @@ namespace Gazeus.DesafioMatch3.Controllers
             }
         }
 
-        private void SelectTile (Vector2Int position )
-        {
-            _selectedTilePosition = position;
-        }
 
         private void ProcessSecondTileClick(Vector2Int clickedPosition )
         {
@@ -161,6 +171,11 @@ namespace Gazeus.DesafioMatch3.Controllers
                 List<BoardSequence> swapResult = _gameEngine.SwapTile(from.x, from.y, to.x, to.y);
                 AnimateBoard(swapResult, 0, () => _isAnimating = false);
             }
+        }
+
+        private void SelectTile (Vector2Int position)
+        {
+            _selectedTilePosition = position;
         }
 
         private void DiselectTile ()

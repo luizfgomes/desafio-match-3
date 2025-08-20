@@ -76,7 +76,8 @@ namespace Gazeus.DesafioMatch3.Core
                     MatchedPosition = processingResult.DestroyedPositions,
                     TransformedTiles = processingResult.TransformedTiles,
                     MovedTiles = movedTiles,
-                    AddedTiles = addedTiles
+                    AddedTiles = addedTiles,
+                    ActivatedPowerups = processingResult.ActivatedPowerups
                 });
 
                 specialTileCreationPosition = null;
@@ -142,6 +143,7 @@ namespace Gazeus.DesafioMatch3.Core
         {
             var destroyedPositions = new HashSet<Vector2Int>();
             var transformedTiles = new List<TransformedTileInfo>();
+            var activatedPowerups = new List<ActivatedPowerupInfo>();
             var powerupsToActivate = new Queue<Vector2Int>();
             var initialMatchesOnly = new HashSet<Vector2Int>();
 
@@ -170,6 +172,12 @@ namespace Gazeus.DesafioMatch3.Core
                 {
                     continue;
                 }
+
+                activatedPowerups.Add(new ActivatedPowerupInfo
+                {
+                    Position = currentPowerupPos,
+                    SpecialType = tile.Special
+                });
 
                 List<Vector2Int> affectedPositions = new List<Vector2Int>();
                 if (tile.Special == SpecialTileType.LineClearHorizontal)
@@ -271,18 +279,20 @@ namespace Gazeus.DesafioMatch3.Core
                 board.Tiles [pos.y] [pos.x].Special = SpecialTileType.None;
             }
 
-            return new MatchProcessingResult(destroyedPositions.ToList(), transformedTiles);
+            return new MatchProcessingResult(destroyedPositions.ToList(), transformedTiles, activatedPowerups);
         }
 
         private class MatchProcessingResult
         {
             public readonly List<Vector2Int> DestroyedPositions;
             public readonly List<TransformedTileInfo> TransformedTiles;
+            public readonly List<ActivatedPowerupInfo> ActivatedPowerups;
 
-            public MatchProcessingResult (List<Vector2Int> destroyedPositions, List<TransformedTileInfo> transformedTiles)
+            public MatchProcessingResult (List<Vector2Int> destroyedPositions, List<TransformedTileInfo> transformedTiles, List<ActivatedPowerupInfo> activatedPowerups)
             {
                 DestroyedPositions = destroyedPositions;
                 TransformedTiles = transformedTiles;
+                ActivatedPowerups = activatedPowerups;
             }
         }
     }
